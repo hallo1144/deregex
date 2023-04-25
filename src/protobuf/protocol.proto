@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package network;
+
+message init_request {
+    uint32 key = 1;
+}
+
+message init_response {
+    uint64 beaver_coef = 1;
+
+    message node {
+        string ip = 1;
+        uint32 port = 2;
+    }
+
+    repeated node nodes = 2;
+}
+
+message node_request {
+    uint32 key = 1;
+    bytes input = 2;
+    bytes ai = 3;
+    bytes bi = 4;
+    bytes ci = 5;
+}
+
+message node_response {
+    uint32 result = 1;
+}
+
+message node_register_response {
+    uint32 index = 1;
+    bytes dfa = 2;
+}
+
+message node_notify {
+    uint32 key = 1;
+    uint32 turn = 2;
+    bytes xa = 3;
+    bytes yb = 4;
+}
+
+message server_broadcast {
+    uint32 key = 1;
+    uint32 turn = 2;
+    bytes xa = 3;
+    bytes yb = 4;
+}
+
+message general_response {
+    enum Status {
+        SUCCESS = 0;
+        FAIL = 1;
+    }
+    Status status = 1;
+}
