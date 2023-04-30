@@ -53,13 +53,15 @@ def user_receiver_start(beaver_coef: int):
     threads[-1].start()
 
 def main():
-    Q, dfas = util.split_DFA(config.REGEX)
+    Q, Q_ac, dfas = util.split_DFA(config.REGEX)
+    Q += 1
     state_len = int(math.log2(Q + 1) // 8) + (0 if math.log2(Q + 1) % 8 == 0 else 1)
+    print(f"Q: {Q}, state_len: {state_len}")
 
     connection.init_node_connection(dfas)
     node_receiver_start()
 
-    user_receiver_start(Q * state_len * config.SIGMA)
+    user_receiver_start(Q * (2 * state_len + 1) * config.SIGMA + state_len * Q_ac)
 
     global threads
     for i in range(len(threads)):

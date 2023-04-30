@@ -61,14 +61,11 @@ def node_broadcast(key: int, turn: int, xa: bytes, yb: bytes):
     broadcast.yb = yb
     data = broadcast.SerializeToString()
 
-    if len(xa) > 1:
-        print(f"broadcast key {key} turn {turn} xa = {xa.hex()} yb = {yb.hex()}")
-
     global nodes
     for node in nodes:
         send_message(node, data)
 
-def init_request(beaver_coef: int, buffer: Mapping, b_lock: threading.Lock):
+def init_request(beaver_length: int, buffer: Mapping, b_lock: threading.Lock):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
@@ -88,7 +85,7 @@ def init_request(beaver_coef: int, buffer: Mapping, b_lock: threading.Lock):
         b_lock.release()
 
         res = proto.init_response()
-        res.beaver_coef = beaver_coef
+        res.beaver_length = beaver_length
         
         for i in range(config.NODE_NUM):
             n = res.nodes.add()

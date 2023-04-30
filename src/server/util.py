@@ -33,9 +33,6 @@ def split_DFA(regex, node_num=2):
         # trap state
         index = input_char.to_bytes(1, "big") + trap_state.to_bytes(state_len, "big")
         dfa[index] = trap_state.to_bytes(state_len, "big")
-    with open("dfadump", "wb") as f:
-        pickle.dump(dfa, f)
-        print(accept_states)
 
     sdfa = [dict() for _ in range(node_num)]
     sdfa[0]["accept_states"] = [bytearray(s.to_bytes(state_len, "big")) for s in accept_states]
@@ -71,4 +68,4 @@ def split_DFA(regex, node_num=2):
     #     re_k = bytes(re_k)
     #     re_v = bytes(re_v)
     #     assert re_k in dfa and dfa[re_k] == re_v
-    return len(states), sdfa
+    return len(states), len(accept_states), sdfa

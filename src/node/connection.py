@@ -1,12 +1,49 @@
 import pickle
 import socket
+import time
 from typing import Tuple
 
+class NetworkStatistics:
+    transmit_delay = 0
+    inbound_bytes = 0
+    outbound_bytes = 0
+
+    def clear(self):
+        self.transmit_delay = 0
+        self.inbound_bytes = 0
+        self.outbound_bytes = 0
+
+ns = {}
+
+def timing(direction):
+    assert direction in ["in", "out"]
+    def decorator(func):
+        def wrapper(conn: socket.socket, *args):
+            global ns
+            now = time.time()
+            res = func(conn, *args)
+            transmit_delay = time.time() - now
+
+            if conn not in ns:
+                ns[conn] = NetworkStatistics()
+            ns[conn].transmit_delay += transmit_delay
+
+            if direction == "in":
+                ns[conn].inbound_bytes += len(res)
+            else:
+                ns[conn].outbound_bytes += len(args[0])
+
+            return res
+        return wrapper
+    return decorator
+
+@timing("out")
 def send_message(conn: socket.socket, data: bytes) -> None:
     assert len(data) < (1<<32)
     size = int.to_bytes(len(data), 4, byteorder="big")
     conn.sendall(size + data)
 
+@timing("in")
 def recv_message(conn: socket.socket):
     size = int.from_bytes(conn.recv(4), byteorder="big")
     received_payload = conn.recv(size)
@@ -37,3 +74,4 @@ def handle_request(node_port: int) -> socket.socket:
         print('user connected by ' + str(addr))
         yield conn
         conn.close()
+        del ns[conn]

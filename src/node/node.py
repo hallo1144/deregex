@@ -1,5 +1,6 @@
 import util
 import time
+from tqdm import trange
 
 import sys
 sys.path.append("../")
@@ -7,9 +8,17 @@ import config
 import connection
 from protobuf import protocol_pb2 as proto
 
+def print_timing(func):
+    def wrapper(*args, **kwargs):
+        now = time.time()
+        res = func(*args, **kwargs)
+        print(f"used {time.time() - now: .2f} secs.")
+        return res
+    return wrapper
+
 class Node:
     def __init__(self, server_addr="127.0.0.1", server_port=8081):
-        self.sock, data = connection.node_register(server_addr, server_port)
+        self.__sock, data = connection.node_register(server_addr, server_port)
         res = proto.node_register_response()
         res.ParseFromString(data)
         self.__idx = res.index
@@ -37,9 +46,9 @@ class Node:
         req.yb = yi_bi
         success = False
         while not success:
-            connection.send_message(self.sock, req.SerializeToString())
+            connection.send_message(self.__sock, req.SerializeToString())
 
-            data = connection.recv_message(self.sock)
+            data = connection.recv_message(self.__sock)
             res = proto.general_response()
             res.ParseFromString(data)
             if res.status == proto.general_response.SUCCESS:
@@ -48,7 +57,7 @@ class Node:
                 print(f"key {self.__key} turn {self.__turn} notify fail")
                 time.sleep(0.05)
         
-        data = connection.recv_message(self.sock)
+        data = connection.recv_message(self.__sock)
         res = proto.server_broadcast()
         res.ParseFromString(data)
         assert res.key == self.__key and res.turn == self.__turn
@@ -87,9 +96,9 @@ class Node:
             req.yb = yi_bi.to_bytes(1, byteorder="big")
             success = False
             while not success:
-                connection.send_message(self.sock, req.SerializeToString())
+                connection.send_message(self.__sock, req.SerializeToString())
 
-                data = connection.recv_message(self.sock)
+                data = connection.recv_message(self.__sock)
                 res = proto.general_response()
                 res.ParseFromString(data)
                 if res.status == proto.general_response.SUCCESS:
@@ -98,7 +107,7 @@ class Node:
                     print(f"key {self.__key} turn {self.__turn} notify fail")
                     time.sleep(0.05)
             
-            data = connection.recv_message(self.sock)
+            data = connection.recv_message(self.__sock)
             res = proto.server_broadcast()
             res.ParseFromString(data)
             assert res.key == self.__key and res.turn == self.__turn
@@ -174,7 +183,9 @@ class Node:
         self.__bi = b""
         self.__ci = b""
 
+    @print_timing
     def evaluate(self, input: bytes) -> bytes:
+        connection.ns[self.__sock].clear()
         state_len = len(self.dfa["dfa"][0][1])
         curr_state = b"\0" * state_len
         Q_sigma = len(self.dfa["dfa"])
@@ -185,18 +196,40 @@ class Node:
             # dfa_idx += self.dfa["dfa"][i][0]
             dfa_value += self.dfa["dfa"][i][1]
         assert len(dfa_value) == Q_sigma * state_len, f"dfa_value length wrong"
+        # for round, i in enumerate(input):
+        #     print(f"evaluating input {round}")
+        #     # idx = (i.to_bytes(1, byteorder="big") + curr_state) * Q_sigma
+        #     idx = i.to_bytes(1, byteorder="big") + curr_state
+        #     mask = b""
+        #     for j in trange(Q_sigma):
+        #         mask += self.__gen_mask(self.__share_compare(idx, self.dfa["dfa"][j][0]), state_len)
+        #     assert len(mask) == Q_sigma * state_len, f"mask length wrong, len(mask) = {len(mask)}"
+        #     print(f"round {round} get mask")
+        #     lres = self.__share_and(mask, dfa_value)
+
+        #     res = bytearray(lres[:state_len])
+        #     assert len(lres) % state_len == 0
+        #     for j in range(state_len, len(lres), state_len):
+        #         util.XOR_ba_b(res, lres[j:j+state_len])
+            
+        #     curr_state = bytes(res)
+        #     print(f"round {round} finish, curr_state = {curr_state}")
         for round, i in enumerate(input):
-            print(f"evaluating round {round}")
+            before = len(self.__ai)
+            print(f"evaluating input {round}")
             # idx = (i.to_bytes(1, byteorder="big") + curr_state) * Q_sigma
             idx = i.to_bytes(1, byteorder="big") + curr_state
             mask = b""
-            for j in range(Q_sigma):
-                if (j+1) % 1000 == 0:
-                    print(f"\tproceeding {j}th")
+            for j in trange(Q_sigma):
                 mask += self.__gen_mask(self.__share_compare(idx, self.dfa["dfa"][j][0]), state_len)
             assert len(mask) == Q_sigma * state_len, f"mask length wrong, len(mask) = {len(mask)}"
             print(f"round {round} get mask")
+            now = len(self.__ai)
+            print(f"[beaver] used {before - now} beaver, each round {(before - now) // Q_sigma}.")
+            before = now
             lres = self.__share_and(mask, dfa_value)
+            now = len(self.__ai)
+            print(f"[beaver] used {before - now} beaver, each round {(before - now) // Q_sigma}.")
 
             res = bytearray(lres[:state_len])
             assert len(lres) % state_len == 0
@@ -210,8 +243,15 @@ class Node:
         # OR all result: NOT -> AND -> NOT
         for ac in self.dfa["accept_states"]:
             cmp = self.__share_compare(curr_state, ac)
-            res^= cmp
+            res ^= cmp
             print(f"res cmp: {cmp}")
+        print(f"{len(self.__ai)} beaver tripple remains")
+        print(f"transmittion to server takes {connection.ns[self.__sock].transmit_delay: .2f} secs.")
+
+        a = connection.ns[self.__sock].inbound_bytes
+        print(f"data from server: {a} bytes | {a/1024} KB | {a/1024/1024} MB")
+        a = connection.ns[self.__sock].outbound_bytes
+        print(f"data to server: {a} bytes | {a/1024} KB | {a/1024/1024} MB")
         return res
 
 
@@ -232,6 +272,13 @@ if __name__ == "__main__":
 
         # send_node_response
         resp = proto.node_response()
-        resp.result = res # TODO: add multiple accept state support
+        resp.result = res
         connection.send_message(conn, resp.SerializeToString())
+
+        print(f"transmittion to user takes {connection.ns[conn].transmit_delay: .2f} secs.")
+
+        a = connection.ns[conn].inbound_bytes
+        print(f"data from user: {a} bytes | {a/1024} KB | {a/1024/1024} MB")
+        a = connection.ns[conn].outbound_bytes
+        print(f"data to user: {a} bytes | {a/1024} KB | {a/1024/1024} MB")
 

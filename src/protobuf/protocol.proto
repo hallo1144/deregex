@@ -7,7 +7,7 @@ message init_request {
 }
 
 message init_response {
-    uint64 beaver_coef = 1;
+    uint64 beaver_length = 1;
 
     message node {
         string ip = 1;

@@ -14,8 +14,9 @@ def init(key: int, regex_len: int) -> Tuple[int, Sequence[proto.init_response.no
     req.key = key
     res = proto.init_response()
     res.ParseFromString(connection.init_request(req.SerializeToString()))
+    print(f"beaver per round: {res.beaver_length}, regex_len: {regex_len}")
 
-    return res.beaver_coef * 2 * regex_len, res.nodes
+    return res.beaver_length * regex_len, res.nodes
 
 def gen_data(input_str: Union[bytes, str], beaver_len: int) -> Tuple[Sequence[Mapping[str, bytes]], Sequence[bytes]]:
     a, b, c = util.gen_tripple(beaver_len, node_num=config.NODE_NUM)
@@ -59,7 +60,6 @@ def query(nodes: Sequence[proto.init_response.node], beaver_tripples: Sequence[M
     for t in thread_list:
         t.join()
     
-    print(res_list)
     res = res_list[0]
     for r in res_list[1:]:
         res ^= r
@@ -69,8 +69,10 @@ def query(nodes: Sequence[proto.init_response.node], beaver_tripples: Sequence[M
 if __name__ == "__main__":
     input_str = config.INPUT
     key = int.from_bytes(os.urandom(4), byteorder="big")
-    coef, nodes = init(key, len(input_str))
-    beaver_tripples, input_strs = gen_data(input_str, 2 * len(input_str) * coef)
-    # beaver_tripples, input_strs = gen_data(input_str, 100)
+    beaver_length, nodes = init(key, len(input_str))
+    beaver_tripples, input_strs = gen_data(input_str, beaver_length)
+    print(f"length of beaver: {len(beaver_tripples[0]['a'])}")
     res = query(nodes, beaver_tripples, input_strs, key)
-    print(res)
+    
+    assert 0 < res < 2
+    print("" if res == 1 else "not " + "match.")
