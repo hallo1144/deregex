@@ -60,6 +60,7 @@ def query(nodes: Sequence[proto.init_response.node], beaver_tripples: Sequence[M
     for t in thread_list:
         t.join()
     
+    print(f"res_list: {res_list}")
     res = res_list[0]
     for r in res_list[1:]:
         res ^= r
@@ -74,5 +75,5 @@ if __name__ == "__main__":
     print(f"length of beaver: {len(beaver_tripples[0]['a'])}")
     res = query(nodes, beaver_tripples, input_strs, key)
     
-    assert 0 < res < 2
-    print("" if res == 1 else "not " + "match.")
+    assert res in [0, 1]
+    print(("" if res == 1 else "not ") + "match.")
