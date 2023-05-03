@@ -32,7 +32,11 @@ class Node:
         self.__turn = 0
         self.__key = -1
 
+        self.__and_count = 0
+
     def __share_and(self, xi: bytes, yi: bytes) -> bytes:
+        self.__and_count += 1
+
         l = len(xi)
         assert l == len(yi), f"{l} != {len(yi)}"
         ai, bi, ci = self.__get_tripple(l)
@@ -72,6 +76,8 @@ class Node:
         return bytes(result)
 
     def __share_1_byte_and(self, xib: bytes) -> int:
+        self.__and_count += 1
+
         assert len(xib) == 1
         ai_t, bi_t, ci_t = self.__get_tripple(1)
         ai_t = int.from_bytes(ai_t, byteorder="big")
@@ -186,6 +192,7 @@ class Node:
     @print_timing
     def evaluate(self, input: bytes) -> bytes:
         connection.ns[self.__sock].clear()
+        self.__and_count = 0
 
         Q = len(self.__dfa["states"])
         state_len = len(self.__dfa["dfa"][0][0])
@@ -252,6 +259,8 @@ class Node:
         print(f"data from server: {a} bytes | {a/1024} KB | {a/1024/1024} MB")
         a = connection.ns[self.__sock].outbound_bytes
         print(f"data to server: {a} bytes | {a/1024} KB | {a/1024/1024} MB")
+
+        print(f"AND operations: {self.__and_count} times")
         return res
 
 
