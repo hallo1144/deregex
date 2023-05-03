@@ -24,7 +24,7 @@ nodes = []
 def serialize_dfa(dfa):
     return pickle.dumps(dfa)
 
-def init_node_connection(dfas):
+def init_node_connection(sdfa):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
@@ -37,7 +37,7 @@ def init_node_connection(dfas):
         print('node_port connected by ' + str(addr))
         res = proto.node_register_response()
         res.index = i
-        res.dfa = serialize_dfa(dfas[i])
+        res.dfa = serialize_dfa(sdfa[i])
         send_message(conn, res.SerializeToString())
         nodes.append(conn)
 

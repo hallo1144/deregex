@@ -12,7 +12,7 @@ def print_timing(func):
     def wrapper(*args, **kwargs):
         now = time.time()
         res = func(*args, **kwargs)
-        print(f"used {time.time() - now: .2f} secs.")
+        print(f"{time.time() - now: .2f} secs used.")
         return res
     return wrapper
 
@@ -23,7 +23,7 @@ class Node:
         res.ParseFromString(data)
         self.__idx = res.index
         self.port = config.USER_NODE_PORT[self.__idx]
-        self.dfa = connection.deserialize_dfa(res.dfa)
+        self.__dfa = connection.deserialize_dfa(res.dfa)
         print(f"node {self.__idx} create")
 
         self.__ai = b""
@@ -194,42 +194,42 @@ class Node:
         self.__and_count = 0
 
         connection.ns[self.__sock].clear()
-        state_len = len(self.dfa["dfa"][0][1])
-        curr_state = b"\0" * state_len
-        Q_sigma = len(self.dfa["dfa"])
-        print(f"Q_sigma = {Q_sigma}, state_len = {state_len}")
-        # dfa_idx = b""
-        dfa_value = b""
-        for i in range(Q_sigma):
-            # dfa_idx += self.dfa["dfa"][i][0]
-            dfa_value += self.dfa["dfa"][i][1]
-        assert len(dfa_value) == Q_sigma * state_len, f"dfa_value length wrong"
-        # for round, i in enumerate(input):
-        #     print(f"evaluating input {round}")
-        #     # idx = (i.to_bytes(1, byteorder="big") + curr_state) * Q_sigma
-        #     idx = i.to_bytes(1, byteorder="big") + curr_state
-        #     mask = b""
-        #     for j in trange(Q_sigma):
-        #         mask += self.__gen_mask(self.__share_compare(idx, self.dfa["dfa"][j][0]), state_len)
-        #     assert len(mask) == Q_sigma * state_len, f"mask length wrong, len(mask) = {len(mask)}"
-        #     print(f"round {round} get mask")
-        #     lres = self.__share_and(mask, dfa_value)
 
-        #     res = bytearray(lres[:state_len])
-        #     assert len(lres) % state_len == 0
-        #     for j in range(state_len, len(lres), state_len):
-        #         util.XOR_ba_b(res, lres[j:j+state_len])
-            
-        #     curr_state = bytes(res)
-        #     print(f"round {round} finish, curr_state = {curr_state}")
+        Q = len(self.__dfa["states"])
+        state_len = len(self.__dfa["dfa"][0][0])
+        curr_state = b"\0" * state_len
+        Q_sigma = Q * 256
+        print(f"Q_sigma = {Q_sigma}, state_len = {state_len}")
+        dfa_value = b""
+        for i in range(256):
+            for j in range(Q):
+                dfa_value += self.__dfa["dfa"][i][j]
+        assert len(dfa_value) == Q_sigma * state_len, f"dfa_value length wrong"
+        
         for round, i in enumerate(input):
             before = len(self.__ai)
             print(f"evaluating input {round}")
-            # idx = (i.to_bytes(1, byteorder="big") + curr_state) * Q_sigma
-            idx = i.to_bytes(1, byteorder="big") + curr_state
+            curr_input = i.to_bytes(1, byteorder="big")
             mask = b""
-            for j in trange(Q_sigma):
-                mask += self.__gen_mask(self.__share_compare(idx, self.dfa["dfa"][j][0]), state_len)
+            mask_a = [[0] * Q for _ in range(256)]
+            mask_b = [[0] * Q for _ in range(256)]
+
+            for j in range(Q):
+                res = self.__share_compare(curr_state, self.__dfa["states"][j])
+                for i in range(256):
+                    mask_a[i][j] = res
+            for i in range(256):
+                res = self.__share_compare(curr_input, self.__dfa["inputs"][i])
+                for j in range(Q):
+                    mask_b[i][j] = res
+            x = util.arr2d_2_num(mask_a).to_bytes((256 * Q) // 8 + 1, byteorder="big")
+            y = util.arr2d_2_num(mask_b).to_bytes((256 * Q) // 8 + 1, byteorder="big")
+            z = self.__share_and(x, y)
+            mask_r = util.num_2_arr2d(int.from_bytes(z, byteorder="big"), 256, Q)
+            for i in range(256):
+                for j in range(Q):
+                    mask += self.__gen_mask(mask_r[i][j], state_len)
+
             assert len(mask) == Q_sigma * state_len, f"mask length wrong, len(mask) = {len(mask)}"
             print(f"round {round} get mask")
             now = len(self.__ai)
@@ -249,7 +249,7 @@ class Node:
         
         res = 0
         # OR all result: NOT -> AND -> NOT
-        for ac in self.dfa["accept_states"]:
+        for ac in self.__dfa["accept_states"]:
             cmp = self.__share_compare(curr_state, ac)
             res ^= cmp
             print(f"res cmp: {cmp}")
