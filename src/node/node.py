@@ -194,6 +194,7 @@ class Node:
         self.__and_count = 0
 
         connection.ns[self.__sock].clear()
+        self.__and_count = 0
 
         Q = len(self.__dfa["states"])
         state_len = len(self.__dfa["dfa"][0][0])

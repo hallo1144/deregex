@@ -1,6 +1,7 @@
 import os
 import util
 import threading
+import time
 from typing import Union, Tuple, Sequence, Mapping
 
 import sys
@@ -70,6 +71,8 @@ def query(nodes: Sequence[proto.init_response.node], beaver_tripples: Sequence[M
 if __name__ == "__main__":
     input_str = config.INPUT
     key = int.from_bytes(os.urandom(4), byteorder="big")
+
+    start = time.time()
     beaver_length, nodes = init(key, len(input_str))
     beaver_tripples, input_strs = gen_data(input_str, beaver_length)
     print(f"length of beaver: {len(beaver_tripples[0]['a'])}")
@@ -77,3 +80,4 @@ if __name__ == "__main__":
     
     assert res in [0, 1]
     print(("" if res == 1 else "not ") + "match.")
+    print(f"the whole process takes {time.time() - start} seconds.")
