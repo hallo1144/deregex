@@ -40,41 +40,39 @@ def split_DFA(regex, node_num=2):
             dfa[input_char].append(value)
         
         # trap state
-        dfa[input_char].append(trap_state.to_bytes(state_len, "big")) 
-
-    sdfa = [dict() for _ in range(node_num)]
-    sdfa[0]["accept_states"] = [bytearray(s.to_bytes(state_len, "big")) for s in accept_states]
+        dfa[input_char].append(trap_state.to_bytes(state_len, "big"))
     
     # index = original, value = shuffled
-    shuffle_state = list(range(trap_state + 1))
-    # random.shuffle(shuffle_state)
-    shuffle_input = list(range(256))
-    # random.shuffle(shuffle_input)
+    state_list = list(range(trap_state + 1))
+    input_list = list(range(256))
 
-    shuffle_state_split = [[bytearray(x.to_bytes(state_len, byteorder="big")) for x in shuffle_state]]
-    shuffle_input_split = [[bytearray(x.to_bytes(1, byteorder="big")) for x in shuffle_input]]
+    # split dfa
+    sdfa = [dict() for _ in range(node_num)]
+    sdfa[0]["accept_states"] = [bytearray(s.to_bytes(state_len, "big")) for s in accept_states]
+
+    state_list_split = [[bytearray(x.to_bytes(state_len, byteorder="big")) for x in state_list]]
+    input_list_split = [[bytearray(x.to_bytes(1, byteorder="big")) for x in input_list]]
     for i in range(1, node_num):
-        shuffle_state_split.append([])
-        shuffle_input_split.append([])
+        state_list_split.append([])
+        input_list_split.append([])
         for j in range(trap_state + 1):
-            shuffle_state_split[i].append(os.urandom(state_len))
-            XOR_ba_b(shuffle_state_split[0][j], shuffle_state_split[i][j])
+            state_list_split[i].append(os.urandom(state_len))
+            XOR_ba_b(state_list_split[0][j], state_list_split[i][j])
         for j in range(256):
-            shuffle_input_split[i].append(os.urandom(state_len))
-            XOR_ba_b(shuffle_input_split[0][j], shuffle_input_split[i][j])
+            input_list_split[i].append(os.urandom(state_len))
+            XOR_ba_b(input_list_split[0][j], input_list_split[i][j])
 
     sdfa[0]["dfa"] = [[0] * (trap_state + 1) for _ in range(256)]
-    sdfa[0]["states"] = shuffle_state_split[0]
-    sdfa[0]["inputs"] = shuffle_input_split[0]
+    sdfa[0]["states"] = state_list_split[0]
+    sdfa[0]["inputs"] = input_list_split[0]
     for i in range(256):
         for j in range(trap_state + 1):
-            # sdfa[0]["dfa"][i][j] = bytearray(dfa[shuffle_input[i]][shuffle_state[j]])
             sdfa[0]["dfa"][i][j] = bytearray(dfa[i][j])
     
     for i in range(1, node_num):
         sdfa[i]["accept_states"] = []
-        sdfa[i]["states"] = shuffle_state_split[i]
-        sdfa[i]["inputs"] = shuffle_input_split[i]
+        sdfa[i]["states"] = state_list_split[i]
+        sdfa[i]["inputs"] = input_list_split[i]
         for j in range(len(accept_states)):
             sdfa[i]["accept_states"].append(os.urandom(state_len))
             XOR_ba_b(sdfa[0]["accept_states"][j], sdfa[i]["accept_states"][j])

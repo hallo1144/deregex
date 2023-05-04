@@ -53,7 +53,7 @@ def user_receiver_start(beaver_coef: int):
     threads[-1].start()
 
 def main():
-    Q, Q_ac, sdfa = util.split_DFA(config.REGEX)
+    Q, Q_ac, sdfa = util.split_DFA(config.REGEX, node_num=config.NODE_NUM)
     Q += 1
     state_len = int(math.log2(Q + 1) // 8) + (0 if math.log2(Q + 1) % 8 == 0 else 1)
     print(f"Q: {Q}, state_len: {state_len}")

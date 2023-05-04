@@ -1,6 +1,7 @@
 import util
 import time
-from tqdm import trange
+from typing import Sequence, Tuple
+# from tqdm import trange
 
 import sys
 sys.path.append("../")
@@ -34,20 +35,12 @@ class Node:
 
         self.__and_count = 0
 
-    def __share_and(self, xi: bytes, yi: bytes) -> bytes:
-        self.__and_count += 1
-
-        l = len(xi)
-        assert l == len(yi), f"{l} != {len(yi)}"
-        ai, bi, ci = self.__get_tripple(l)
-        xi_ai = util.XOR(xi, ai)
-        yi_bi = util.XOR(yi, bi)
-        
+    def __send_and_intermediate(self, xi: bytes, yi: bytes) -> Tuple[bytes, bytes]:
         req = proto.node_notify()
         req.key = self.__key
         req.turn = self.__turn
-        req.xa = xi_ai
-        req.yb = yi_bi
+        req.xa = xi
+        req.yb = yi
         success = False
         while not success:
             connection.send_message(self.__sock, req.SerializeToString())
@@ -65,7 +58,17 @@ class Node:
         res = proto.server_broadcast()
         res.ParseFromString(data)
         assert res.key == self.__key and res.turn == self.__turn
-        xa, yb = res.xa, res.yb
+        return res.xa, res.yb
+
+    def __share_and(self, xi: bytes, yi: bytes) -> bytes:
+        self.__and_count += 1
+
+        l = len(xi)
+        assert l == len(yi), f"{l} != {len(yi)}"
+        ai, bi, ci = self.__get_tripple(l)
+        xi_ai = util.XOR(xi, ai)
+        yi_bi = util.XOR(yi, bi)
+        xa, yb = self.__send_and_intermediate(xi_ai, yi_bi)
 
         result = bytearray(ci)
         if self.__idx == 0:
@@ -94,30 +97,8 @@ class Node:
 
             xi_ai = xi ^ ai
             yi_bi = yi ^ bi
-            
-            req = proto.node_notify()
-            req.key = self.__key
-            req.turn = self.__turn
-            req.xa = xi_ai.to_bytes(1, byteorder="big")
-            req.yb = yi_bi.to_bytes(1, byteorder="big")
-            success = False
-            while not success:
-                connection.send_message(self.__sock, req.SerializeToString())
-
-                data = connection.recv_message(self.__sock)
-                res = proto.general_response()
-                res.ParseFromString(data)
-                if res.status == proto.general_response.SUCCESS:
-                    break
-                else:
-                    print(f"key {self.__key} turn {self.__turn} notify fail")
-                    time.sleep(0.05)
-            
-            data = connection.recv_message(self.__sock)
-            res = proto.server_broadcast()
-            res.ParseFromString(data)
-            assert res.key == self.__key and res.turn == self.__turn
-            xa, yb = int.from_bytes(res.xa, byteorder="big"), int.from_bytes(res.yb, byteorder="big")
+            xa, yb = self.__send_and_intermediate(xi_ai.to_bytes(1, byteorder="big"), yi_bi.to_bytes(1, byteorder="big"))
+            xa, yb = int.from_bytes(xa, byteorder="big"), int.from_bytes(yb, byteorder="big")
 
             xib = ci
             if self.__idx == 0:
@@ -151,12 +132,81 @@ class Node:
                 cmp = self.__share_and(left, right)
             else:
                 l -= 1
-                left = cmp[:l//2]
                 right = cmp[l//2:l]
                 cmp = self.__share_and(left, right) + cmp[l:]
         # NAND cmp bits
         return self.__share_1_byte_and(cmp)
-    
+
+    def __share_1_byte_and_group(self, xib: Sequence[bytes]) -> int:
+        self.__and_count += 3
+
+        assert len(xib[0]) == 1
+        ai_t, bi_t, ci_t = self.__get_tripple(len(xib))
+        xib = [x[0] for x in xib]
+
+        def is_zero(x: Sequence):
+            for i in x:
+                if i != 0:
+                    return False
+            return True
+
+        for l in [4, 2, 1]:
+            mask = ((1 << l) - 1)
+            ai = [c & mask for c in ai_t]
+            bi = [c & mask for c in bi_t]
+            ci = [c & mask for c in ci_t]
+            yi = [c & mask for c in xib] # LSB, right
+            xi = [(c & (mask << l)) >> l for c in xib] # MSB, left
+
+            xi_ai = [a ^ b for a, b in zip(xi, ai)]
+            yi_bi = [a ^ b for a, b in zip(yi, bi)]
+            xa, yb = self.__send_and_intermediate(bytes(xi_ai), bytes(yi_bi))
+
+            xib = list(ci)
+            if self.__idx == 0:
+                xib = [a ^ (b & c) for a, b, c in zip(xib, xa, yb)]
+            xib = [a ^ (b & c) for a, b, c in zip(xib, bi, xa)]
+            xib = [a ^ (b & c) for a, b, c in zip(xib, ai, yb)]
+
+            ai_t = [x >> l for x in ai_t]
+            bi_t = [x >> l for x in bi_t]
+            ci_t = [x >> l for x in ci_t]
+            assert is_zero([x & (~mask) for x in xib]), f"{xib} {hex(mask)}"
+
+            self.__turn += 1
+        return xib
+
+    def __share_compare_group(self, xi: Sequence[bytes], yi: Sequence[bytes]):
+        assert len(xi) == len(yi)
+        zi = [self.__share_not(util.XOR(x, y)) for x, y in zip(xi, yi)]
+
+        l = len(zi[0])
+        while l > 1:
+            if l % 2 == 0:
+                l //= 2
+                zli = [z[:l] for z in zi]
+                zlim = b''.join(zli)
+                zri = [z[l:] for z in zi]
+                zrim = b''.join(zri)
+
+                cmp = self.__share_and(zlim, zrim)
+                assert len(cmp) == l * len(zi)
+
+                zi = [cmp[i*l:(i+1)*l] for i in range(len(zi))]
+            else:
+                l = (l - 1) // 2
+                zli = [z[:l] for z in zi]
+                zlim = b''.join(zli)
+                zri = [z[l:] for z in zi]
+                zrim = b''.join(zri)
+
+                cmp = self.__share_and(zlim, zrim)
+                assert len(cmp) == l * len(zi)
+
+                zi = [cmp[i*l:(i+1)*l] + zi[2*l:] for i in range(len(zi))]
+            l = len(zi[0])
+        return self.__share_1_byte_and_group(zi)
+
     def __gen_mask(self, x: int, mask_length: int) -> bytes:
         assert x <= 1
         if x == 0:
@@ -215,14 +265,30 @@ class Node:
             mask_a = [[0] * Q for _ in range(256)]
             mask_b = [[0] * Q for _ in range(256)]
 
+            cmp_list1 = []
+            cmp_list2 = []
             for j in range(Q):
-                res = self.__share_compare(curr_state, self.__dfa["states"][j])
+                cmp_list1.append(curr_state)
+                cmp_list2.append(self.__dfa["states"][j])
+            for i in range(256):
+                cmp_list1.append(curr_input)
+                cmp_list2.append(self.__dfa["inputs"][i])
+            
+            res_list = self.__share_compare_group(cmp_list1, cmp_list2)
+            assert len(res_list) == len(cmp_list1)
+            k = 0
+            for j in range(Q):
+                res = res_list[k]
+                k += 1
                 for i in range(256):
                     mask_a[i][j] = res
             for i in range(256):
-                res = self.__share_compare(curr_input, self.__dfa["inputs"][i])
+                res = res_list[k]
+                k += 1
                 for j in range(Q):
                     mask_b[i][j] = res
+
+            
             x = util.arr2d_2_num(mask_a).to_bytes((256 * Q) // 8 + 1, byteorder="big")
             y = util.arr2d_2_num(mask_b).to_bytes((256 * Q) // 8 + 1, byteorder="big")
             z = self.__share_and(x, y)
@@ -246,7 +312,7 @@ class Node:
                 util.XOR_ba_b(res, lres[j:j+state_len])
             
             curr_state = bytes(res)
-            print(f"round {round} finish, curr_state = {curr_state}")
+            print(f"round {round} finish, curr_state = {curr_state.hex()}")
         
         res = 0
         # OR all result: NOT -> AND -> NOT
@@ -272,11 +338,7 @@ if __name__ == "__main__":
         # get_node_request
         data = connection.recv_message(conn)
         req = proto.node_request()
-        try:
-            req.ParseFromString(data)
-        except:
-            print("data length:", len(data))
-            exit(1)
+        req.ParseFromString(data)
         node.set_key(req.key)
         node.set_tripple(req.ai, req.bi, req.ci)
         res = node.evaluate(req.input)
