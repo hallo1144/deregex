@@ -76,7 +76,7 @@ class Node:
         return bytes(result)
 
     def __share_1_byte_and(self, xib: bytes) -> int:
-        self.__and_count += 1
+        self.__and_count += 3
 
         assert len(xib) == 1
         ai_t, bi_t, ci_t = self.__get_tripple(1)
