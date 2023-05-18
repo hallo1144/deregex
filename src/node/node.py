@@ -227,10 +227,15 @@ class Node:
 
         self.__and_count = 0
     
-    def gen_tripple(self, aes_key: bytes, aes_iv: bytes, l: int):
+    def gen_tripple(self, aes_key: bytes, aes_iv: bytes, l: int = 0, c: bytes = b""):
         aes = AES.new(key=aes_key, mode=AES.MODE_OFB, iv=aes_iv)
-        res = aes.encrypt(b"\0" * (3 * l))
-        self.set_tripple(res[:l], res[l:2*l], res[2*l:3*l])
+        if c == b"":
+            res = aes.encrypt(b"\0" * (3 * l))
+            self.set_tripple(res[:l], res[l:2*l], res[2*l:3*l])
+        else:
+            l = len(c)
+            res = aes.encrypt(b"\0" * (2 * l))
+            self.set_tripple(res[:l], res[l:], c)
 
     def __get_tripple(self, l: int):
         assert l < len(self.__ai)
@@ -349,9 +354,9 @@ if __name__ == "__main__":
         node.set_key(req.key)
         
         if req.mode == proto.node_request.PLAIN:
-            node.set_tripple(req.ai, req.bi, req.ci)
+            node.gen_tripple(req.aes_key, req.aes_iv, c = req.ci)
         else:
-            node.gen_tripple(req.aes_key, req.aes_iv, req.length)
+            node.gen_tripple(req.aes_key, req.aes_iv, l = req.length)
         res = node.evaluate(req.input)
 
         # send_node_response

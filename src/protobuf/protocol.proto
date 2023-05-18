@@ -26,14 +26,12 @@ message node_request {
         AES = 1;
     }
     Mode mode = 3;
+    bytes aes_key = 4;
+    bytes aes_iv = 5;
 
-    bytes ai = 4;
-    bytes bi = 5;
     bytes ci = 6;
 
-    bytes aes_key = 7;
-    bytes aes_iv = 8;
-    int32 length = 9;
+    int32 length = 7;
 }
 
 message node_response {

@@ -31,15 +31,21 @@ def gen_tripple(l: int, node_num: int = 2):
     return split(a, node_num=node_num), split(b, node_num=node_num), split(c, node_num=node_num)
 
 def gen_tripple_by_AES(l: int, node_num: int = 2):
-    a = os.urandom(l)
-    b = os.urandom(l)
-    c = AND(a, b)
-
     keys = []
     ivs = []
-    an = bytearray(a)
-    bn = bytearray(b)
-    cn = bytearray(c)
+
+    k = os.urandom(16)
+    iv = os.urandom(16)
+    keys.append(k)
+    ivs.append(iv)
+    aes = AES.new(key=k, mode=AES.MODE_OFB, iv=iv)
+    res = aes.encrypt(b"\0" * (2 * l))
+    an = bytearray(res[:l])
+    bn = bytearray(res[l:])
+
+    a = bytearray(an)
+    b = bytearray(bn)
+    cn_ = bytearray(b"\0" * l)
     for _ in range(node_num-1):
         k = os.urandom(16)
         iv = os.urandom(16)
@@ -52,12 +58,13 @@ def gen_tripple_by_AES(l: int, node_num: int = 2):
         bi_ = res[l:2*l]
         ci_ = res[2*l:3*l]
 
-        XOR_ba_b(an, ai_)
-        XOR_ba_b(bn, bi_)
-        XOR_ba_b(cn, ci_)
-    
-    an = bytes(an)
-    bn = bytes(bn)
-    cn = bytes(cn)
+        XOR_ba_b(a, ai_)
+        XOR_ba_b(b, bi_)
+        XOR_ba_b(cn_, ci_)
+    a = bytes(a)
+    b = bytes(b)
+    c = AND(a, b)
 
-    return an, bn, cn, keys, ivs
+    cn = XOR(c, bytes(cn_))
+
+    return cn, keys, ivs

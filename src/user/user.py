@@ -20,15 +20,14 @@ def init(key: int, regex_len: int) -> Tuple[int, Sequence[proto.init_response.no
     return res.beaver_length * regex_len, res.nodes
 
 def gen_data(input_str: Union[bytes, str], beaver_len: int) -> Tuple[Sequence[Mapping[str, bytes]], Sequence[bytes]]:
-    a, b, c, keys, iv = util.gen_tripple_by_AES(beaver_len, node_num=config.NODE_NUM)
+    c, keys, iv = util.gen_tripple_by_AES(beaver_len, node_num=config.NODE_NUM)
     if type(input_str) == str:
         input_str = input_str.encode("utf-8")
     input_strs = util.split(input_str)
-    tripple = (a, b, c)
 
-    return tripple, (keys, iv), input_strs
+    return c, (keys, iv), input_strs
 
-def query(nodes: Sequence[proto.init_response.node], key: int, beaver_tripple: Sequence[Mapping[str, bytes]], 
+def query(nodes: Sequence[proto.init_response.node], key: int, c: bytes, 
           aes_param: Tuple[Sequence[bytes], Sequence[bytes]], input_strs: Sequence[bytes]):
     res_list = []
     thread_list = []
@@ -51,14 +50,14 @@ def query(nodes: Sequence[proto.init_response.node], key: int, beaver_tripple: S
 
         if i == plain_node:
             data.mode = proto.node_request.PLAIN
-            data.ai = beaver_tripple[0]
-            data.bi = beaver_tripple[1]
-            data.ci = beaver_tripple[2]
+            data.aes_key = aes_param[0][idx]
+            data.aes_iv = aes_param[1][idx]
+            data.ci = c
         else:
             data.mode = proto.node_request.AES
             data.aes_key = aes_param[0][idx]
             data.aes_iv = aes_param[1][idx]
-            data.length = len(beaver_tripple[0])
+            data.length = len(c)
             idx += 1
 
         t = threading.Thread(target = connection.query_node, args = (data.SerializeToString(),
@@ -84,9 +83,9 @@ if __name__ == "__main__":
 
     start = time.time()
     beaver_length, nodes = init(key, len(input_str))
-    beaver_tripples, aes_param, input_strs = gen_data(input_str, beaver_length)
-    print(f"length of beaver: {len(beaver_tripples[0])}")
-    res = query(nodes, key, beaver_tripples, aes_param, input_strs)
+    beaver_c, aes_param, input_strs = gen_data(input_str, beaver_length)
+    print(f"length of beaver: {len(beaver_c)}")
+    res = query(nodes, key, beaver_c, aes_param, input_strs)
     
     assert res in [0, 1]
     print(("" if res == 1 else "not ") + "match.")
