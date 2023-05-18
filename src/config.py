@@ -16,4 +16,5 @@ USER_NODE_PORT = [8083, 8084]
 
 REGEX = "^https?://cas.*\.criteo\.com.*"
 # INPUT = b"https://easylist.to/easylist/easylist.txt"
-INPUT = b"https://casino.uk.criteo.com/easylist/entry"
+# INPUT = b"https://casino.uk.criteo.com/easylist/entry"
+INPUT = "a" * 512

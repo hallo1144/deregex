@@ -1,4 +1,5 @@
 import os
+from Crypto.Cipher import AES
 
 def XOR(x: bytes, y: bytes):
     return bytes(a ^ b for a, b in zip(x, y))
@@ -28,3 +29,35 @@ def gen_tripple(l: int, node_num: int = 2):
     c = AND(a, b)
 
     return split(a, node_num=node_num), split(b, node_num=node_num), split(c, node_num=node_num)
+
+def gen_tripple_by_AES(l: int, node_num: int = 2):
+    a = os.urandom(l)
+    b = os.urandom(l)
+    c = AND(a, b)
+
+    keys = []
+    ivs = []
+    an = bytearray(a)
+    bn = bytearray(b)
+    cn = bytearray(c)
+    for _ in range(node_num-1):
+        k = os.urandom(16)
+        iv = os.urandom(16)
+        keys.append(k)
+        ivs.append(iv)
+        aes = AES.new(key=k, mode=AES.MODE_OFB, iv=iv)
+        res = aes.encrypt(b"\0" * (3 * l))
+
+        ai_ = res[:l]
+        bi_ = res[l:2*l]
+        ci_ = res[2*l:3*l]
+
+        XOR_ba_b(an, ai_)
+        XOR_ba_b(bn, bi_)
+        XOR_ba_b(cn, ci_)
+    
+    an = bytes(an)
+    bn = bytes(bn)
+    cn = bytes(cn)
+
+    return an, bn, cn, keys, ivs

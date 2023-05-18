@@ -2,7 +2,6 @@ import myre2
 import math
 import os
 import time
-from Crypto.Random import random
 
 def print_timing(func):
     def wrapper(*args, **kwargs):
@@ -90,4 +89,4 @@ def split_DFA(regex, node_num=2):
             sdfa[0]["dfa"][j][k] = bytes(sdfa[0]["dfa"][j][k])
     
 
-    return len(states), len(accept_states), sdfa
+    return sdfa

@@ -1,7 +1,8 @@
 import util
 import time
+from Crypto.Cipher import AES
 from typing import Sequence, Tuple
-# from tqdm import trange
+from tqdm import tqdm
 
 import sys
 sys.path.append("../")
@@ -223,7 +224,14 @@ class Node:
         self.__ai = ai
         self.__bi = bi
         self.__ci = ci
+
+        self.__and_count = 0
     
+    def gen_tripple(self, aes_key: bytes, aes_iv: bytes, l: int):
+        aes = AES.new(key=aes_key, mode=AES.MODE_OFB, iv=aes_iv)
+        res = aes.encrypt(b"\0" * (3 * l))
+        self.set_tripple(res[:l], res[l:2*l], res[2*l:3*l])
+
     def __get_tripple(self, l: int):
         assert l < len(self.__ai)
         a = self.__ai[:l]
@@ -241,8 +249,6 @@ class Node:
 
     @print_timing
     def evaluate(self, input: bytes) -> bytes:
-        self.__and_count = 0
-
         connection.ns[self.__sock].clear()
         self.__and_count = 0
 
@@ -257,9 +263,10 @@ class Node:
                 dfa_value += self.__dfa["dfa"][i][j]
         assert len(dfa_value) == Q_sigma * state_len, f"dfa_value length wrong"
         
-        for round, i in enumerate(input):
+        # for round, i in enumerate(input):
+        for i in tqdm(input):
             before = len(self.__ai)
-            print(f"evaluating input {round}")
+            # print(f"evaluating input {round}")
             curr_input = i.to_bytes(1, byteorder="big")
             mask = b""
             mask_a = [[0] * Q for _ in range(256)]
@@ -298,13 +305,13 @@ class Node:
                     mask += self.__gen_mask(mask_r[i][j], state_len)
 
             assert len(mask) == Q_sigma * state_len, f"mask length wrong, len(mask) = {len(mask)}"
-            print(f"round {round} get mask")
+            # print(f"round {round} get mask")
             now = len(self.__ai)
-            print(f"[beaver] used {before - now} beaver, each round {(before - now) // Q_sigma}.")
+            # print(f"[beaver] stage 1 consume {before - now} beaver.")
             before = now
             lres = self.__share_and(mask, dfa_value)
             now = len(self.__ai)
-            print(f"[beaver] used {before - now} beaver, each round {(before - now) // Q_sigma}.")
+            # print(f"[beaver] stage 2 consume {before - now} beaver.")
 
             res = bytearray(lres[:state_len])
             assert len(lres) % state_len == 0
@@ -312,7 +319,7 @@ class Node:
                 util.XOR_ba_b(res, lres[j:j+state_len])
             
             curr_state = bytes(res)
-            print(f"round {round} finish, curr_state = {curr_state.hex()}")
+            # print(f"round {round} finish, curr_state = {curr_state.hex()}")
         
         res = 0
         # OR all result: NOT -> AND -> NOT
@@ -340,7 +347,11 @@ if __name__ == "__main__":
         req = proto.node_request()
         req.ParseFromString(data)
         node.set_key(req.key)
-        node.set_tripple(req.ai, req.bi, req.ci)
+        
+        if req.mode == proto.node_request.PLAIN:
+            node.set_tripple(req.ai, req.bi, req.ci)
+        else:
+            node.gen_tripple(req.aes_key, req.aes_iv, req.length)
         res = node.evaluate(req.input)
 
         # send_node_response
