@@ -199,17 +199,11 @@ class Node:
         curr_state = b"\0" * state_len
         Q_sigma = Q * 256
         print(f"Q_sigma = {Q_sigma}, state_len = {state_len}")
-        dfa_value = b""
-        for i in range(256):
-            for j in range(Q):
-                dfa_value += self.__dfa["dfa"][i][j]
-        assert len(dfa_value) == Q_sigma * state_len, f"dfa_value length wrong"
         
         for round, i in enumerate(input):
             before = len(self.__ai)
             print(f"evaluating input {round}")
             curr_input = i.to_bytes(1, byteorder="big")
-            mask = b""
             mask_a = [[0] * Q for _ in range(256)]
             mask_b = [[0] * Q for _ in range(256)]
 
@@ -225,23 +219,16 @@ class Node:
             y = util.arr2d_2_num(mask_b).to_bytes((256 * Q) // 8 + 1, byteorder="big")
             z = self.__share_and(x, y)
             mask_r = util.num_2_arr2d(int.from_bytes(z, byteorder="big"), 256, Q)
+
+            res = bytearray(b"\0" * state_len)
             for i in range(256):
                 for j in range(Q):
-                    mask += self.__gen_mask(mask_r[i][j], state_len)
-
-            assert len(mask) == Q_sigma * state_len, f"mask length wrong, len(mask) = {len(mask)}"
-            print(f"round {round} get mask")
+                    mask = self.__gen_mask(mask_r[i][j], state_len)
+                    lres = self.__share_and(mask, self.__dfa["dfa"][i][j])
+                    util.XOR_ba_b(res, lres)
+            
             now = len(self.__ai)
             print(f"[beaver] used {before - now} beaver, each round {(before - now) // Q_sigma}.")
-            before = now
-            lres = self.__share_and(mask, dfa_value)
-            now = len(self.__ai)
-            print(f"[beaver] used {before - now} beaver, each round {(before - now) // Q_sigma}.")
-
-            res = bytearray(lres[:state_len])
-            assert len(lres) % state_len == 0
-            for j in range(state_len, len(lres), state_len):
-                util.XOR_ba_b(res, lres[j:j+state_len])
             
             curr_state = bytes(res)
             print(f"round {round} finish, curr_state = {curr_state}")
