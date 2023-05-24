@@ -20,30 +20,53 @@ def XOR_ba_b(a: bytearray, b: bytes):
 def split_DFA(regex, node_num=2):
     if type(regex) is str:
         regex = regex.encode("utf-8")
-    states = myre2.DfaWrapper.getRegexDfa(regex)
+    dfa_wrapper = myre2.DfaWrapper.getRegexDfa(regex)
 
     # add deny state(trap)
-    trap_state = len(states)
-    state_len = int(math.log2(len(states) + 1) // 8) + 1
+    trap_state = len(dfa_wrapper.states)
+    state_len = int(math.log2(trap_state + 1) // 8) + 1
+
+    sts = [0] * trap_state
+    max_val = 0
+    ignore_idx = 0
+    for i in range(256):
+        sts[dfa_wrapper.bytemap[i]] += 1
+        if sts[dfa_wrapper.bytemap[i]] > max_val:
+            max_val = sts[dfa_wrapper.bytemap[i]]
+            ignore_idx = dfa_wrapper.bytemap[i]
+    print(f"the biggest character group is {ignore_idx}, containing {max_val} chars, shrink rate = {256 / (256 - max_val): .2f}")
 
     dfa = []
     accept_states = []
-    for state in states:
+    input_list = []
+    for state in dfa_wrapper.states:
         if state.match:
             accept_states.append(state.index)
     for input_char in range(256):
+        if dfa_wrapper.bytemap[input_char] == ignore_idx:
+            continue
         dfa.append([])
-        for state in states:
-            value = state.next[input_char] if state.next[input_char] != -1 else trap_state
+        input_list.append(input_char)
+        for state in dfa_wrapper.states:
+            value = state.next[dfa_wrapper.bytemap[input_char]]
+            value = value if value != -1 else trap_state
             value = value.to_bytes(state_len, "big")
-            dfa[input_char].append(value)
+            dfa[-1].append(value)
         
         # trap state
-        dfa[input_char].append(trap_state.to_bytes(state_len, "big"))
+        dfa[-1].append(trap_state.to_bytes(state_len, "big"))
+    sigma = len(input_list) + 1
+
+    # state changes for ignore_idx
+    dfa.append([])
+    for state in dfa_wrapper.states:
+        value = state.next[ignore_idx]
+        value = value if value != -1 else trap_state
+        value = value.to_bytes(state_len, "big")
+        dfa[-1].append(value)
+    dfa[-1].append(trap_state.to_bytes(state_len, "big"))
     
-    # index = original, value = shuffled
     state_list = list(range(trap_state + 1))
-    input_list = list(range(256))
 
     # split dfa
     sdfa = [dict() for _ in range(node_num)]
@@ -57,14 +80,14 @@ def split_DFA(regex, node_num=2):
         for j in range(trap_state + 1):
             state_list_split[i].append(os.urandom(state_len))
             XOR_ba_b(state_list_split[0][j], state_list_split[i][j])
-        for j in range(256):
+        for j in range(sigma-1):
             input_list_split[i].append(os.urandom(state_len))
             XOR_ba_b(input_list_split[0][j], input_list_split[i][j])
 
-    sdfa[0]["dfa"] = [[0] * (trap_state + 1) for _ in range(256)]
+    sdfa[0]["dfa"] = [[0] * (trap_state + 1) for _ in range(sigma)]
     sdfa[0]["states"] = state_list_split[0]
     sdfa[0]["inputs"] = input_list_split[0]
-    for i in range(256):
+    for i in range(sigma):
         for j in range(trap_state + 1):
             sdfa[0]["dfa"][i][j] = bytearray(dfa[i][j])
     
@@ -76,17 +99,16 @@ def split_DFA(regex, node_num=2):
             sdfa[i]["accept_states"].append(os.urandom(state_len))
             XOR_ba_b(sdfa[0]["accept_states"][j], sdfa[i]["accept_states"][j])
         
-        sdfa[i]["dfa"] = [[0] * (trap_state + 1) for _ in range(256)]
-        for j in range(256):
+        sdfa[i]["dfa"] = [[0] * (trap_state + 1) for _ in range(sigma)]
+        for j in range(sigma):
             for k in range(trap_state + 1):
                 sdfa[i]["dfa"][j][k] = os.urandom(state_len)
                 XOR_ba_b(sdfa[0]["dfa"][j][k], sdfa[i]["dfa"][j][k])
 
     for j in range(len(accept_states)):
         sdfa[0]["accept_states"][j] = bytes(sdfa[0]["accept_states"][j])
-    for j in range(256):
+    for j in range(sigma):
         for k in range(trap_state + 1):
             sdfa[0]["dfa"][j][k] = bytes(sdfa[0]["dfa"][j][k])
     
-
     return sdfa

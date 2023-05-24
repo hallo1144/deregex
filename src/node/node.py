@@ -258,31 +258,32 @@ class Node:
         self.__and_count = 0
 
         Q = len(self.__dfa["states"])
+        sigma = len(self.__dfa["inputs"]) + 1
         state_len = len(self.__dfa["dfa"][0][0])
         curr_state = b"\0" * state_len
-        Q_sigma = Q * 256
+        Q_sigma = Q * sigma
         print(f"Q_sigma = {Q_sigma}, state_len = {state_len}")
         dfa_value = b""
-        for i in range(256):
+        for i in range(sigma):
             for j in range(Q):
                 dfa_value += self.__dfa["dfa"][i][j]
         assert len(dfa_value) == Q_sigma * state_len, f"dfa_value length wrong"
         
         # for round, i in enumerate(input):
         for i in tqdm(input):
-            before = len(self.__ai)
+            # before = len(self.__ai)
             # print(f"evaluating input {round}")
             curr_input = i.to_bytes(1, byteorder="big")
             mask = b""
-            mask_a = [[0] * Q for _ in range(256)]
-            mask_b = [[0] * Q for _ in range(256)]
+            mask_a = [[0] * Q for _ in range(sigma)]
+            mask_b = [[0] * Q for _ in range(sigma)]
 
             cmp_list1 = []
             cmp_list2 = []
             for j in range(Q):
                 cmp_list1.append(curr_state)
                 cmp_list2.append(self.__dfa["states"][j])
-            for i in range(256):
+            for i in range(sigma-1):
                 cmp_list1.append(curr_input)
                 cmp_list2.append(self.__dfa["inputs"][i])
             
@@ -292,20 +293,24 @@ class Node:
             for j in range(Q):
                 res = res_list[k]
                 k += 1
-                for i in range(256):
+                for i in range(sigma):
                     mask_a[i][j] = res
-            for i in range(256):
+            res_ignore = 1 if self.__idx == 0 else 0
+            for i in range(sigma-1):
                 res = res_list[k]
+                res_ignore ^= res
                 k += 1
                 for j in range(Q):
                     mask_b[i][j] = res
+            for j in range(Q):
+                mask_b[-1][j] = res_ignore
 
             
-            x = util.arr2d_2_num(mask_a).to_bytes((256 * Q) // 8 + 1, byteorder="big")
-            y = util.arr2d_2_num(mask_b).to_bytes((256 * Q) // 8 + 1, byteorder="big")
+            x = util.arr2d_2_num(mask_a).to_bytes(Q_sigma // 8 + 1, byteorder="big")
+            y = util.arr2d_2_num(mask_b).to_bytes(Q_sigma // 8 + 1, byteorder="big")
             z = self.__share_and(x, y)
-            mask_r = util.num_2_arr2d(int.from_bytes(z, byteorder="big"), 256, Q)
-            for i in range(256):
+            mask_r = util.num_2_arr2d(int.from_bytes(z, byteorder="big"), sigma, Q)
+            for i in range(sigma):
                 for j in range(Q):
                     mask += self.__gen_mask(mask_r[i][j], state_len)
 
@@ -313,7 +318,7 @@ class Node:
             # print(f"round {round} get mask")
             now = len(self.__ai)
             # print(f"[beaver] stage 1 consume {before - now} beaver.")
-            before = now
+            # before = now
             lres = self.__share_and(mask, dfa_value)
             now = len(self.__ai)
             # print(f"[beaver] stage 2 consume {before - now} beaver.")

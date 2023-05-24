@@ -85,6 +85,7 @@ if __name__ == "__main__":
     beaver_length, nodes = init(key, len(input_str))
     beaver_c, aes_param, input_strs = gen_data(input_str, beaver_length)
     print(f"length of beaver: {len(beaver_c)}")
+    print(f"user work takes {time.time() - start} seconds.")
     res = query(nodes, key, beaver_c, aes_param, input_strs)
     
     assert res in [0, 1]

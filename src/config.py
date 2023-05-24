@@ -1,5 +1,4 @@
 NODE_NUM = 2
-SIGMA = 256
 NODE_SERVER_PORT = 8081
 SERVER_ADDR = "127.0.0.1"
 
@@ -15,6 +14,6 @@ USER_NODE_PORT = [8083, 8084]
 # INPUT = b"aggeguh"
 
 REGEX = "^https?://cas.*\.criteo\.com.*"
-# INPUT = b"https://easylist.to/easylist/easylist.txt"
+INPUT = b"https://easylist.to/easylist/easylist.txt"
 # INPUT = b"https://casino.uk.criteo.com/easylist/entry"
-INPUT = "a" * 512
+# INPUT = "a" * 512

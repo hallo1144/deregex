@@ -56,13 +56,14 @@ def main():
     sdfa = util.split_DFA(config.REGEX, node_num=config.NODE_NUM)
     Q = len(sdfa[0]["states"])
     acQ = len(sdfa[0]["accept_states"])
+    sigma = len(sdfa[0]["dfa"])
     state_len = int(math.log2(Q + 1) // 8) + (0 if math.log2(Q + 1) % 8 == 0 else 1)
     print(f"Q: {Q}, acQ: {acQ}, state_len: {state_len}")
 
     connection.init_node_connection(sdfa)
     node_receiver_start()
 
-    beaver_length = (Q * state_len * config.SIGMA * 9 // 8) + (Q * state_len + config.SIGMA) + acQ
+    beaver_length = (Q * state_len * sigma * 9 // 8) + (Q * state_len + sigma) + acQ
     user_receiver_start(beaver_length)
     # Q, sdfa = util.split_DFA(config.REGEX, node_num=config.NODE_NUM)
     # Q_ac = len(sdfa[0]["accept_states"])
