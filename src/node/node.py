@@ -231,7 +231,7 @@ class Node:
             print(f"[beaver] used {before - now} beaver, each round {(before - now) // Q_sigma}.")
             
             curr_state = bytes(res)
-            print(f"round {round} finish, curr_state = {curr_state}")
+            print(f"round {round} finish, curr_state = {curr_state.hex()}")
         
         res = 0
         # OR all result: NOT -> AND -> NOT

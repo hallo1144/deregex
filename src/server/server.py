@@ -61,6 +61,7 @@ def main():
     connection.init_node_connection(sdfa)
     node_receiver_start()
 
+    user_receiver_start(Q * state_len + config.SIGMA + Q * config.SIGMA // 8 + 1 + Q * state_len * config.SIGMA + state_len * Q_ac)
     user_receiver_start(Q * (2 * state_len + 1) * config.SIGMA + state_len * Q_ac)
 
     global threads
