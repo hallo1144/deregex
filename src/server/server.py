@@ -62,7 +62,7 @@ def main():
     connection.init_node_connection(sdfa)
     node_receiver_start()
 
-    beaver_length = (Q * state_len * config.SIGMA * 9 // 8) + (Q * state_len + config.SIGMA) + acQ
+    beaver_length = Q * state_len + config.SIGMA + Q * config.SIGMA // 8 + 1 + Q * state_len * config.SIGMA + state_len * acQ
     user_receiver_start(beaver_length)
     # Q, sdfa = util.split_DFA(config.REGEX, node_num=config.NODE_NUM)
     # Q_ac = len(sdfa[0]["accept_states"])
