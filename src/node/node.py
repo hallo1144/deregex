@@ -198,54 +198,24 @@ class Node:
         curr_state = b"\0" * state_len
         Q_sigma = len(self.dfa["dfa"])
         print(f"Q_sigma = {Q_sigma}, state_len = {state_len}")
-        # dfa_idx = b""
-        dfa_value = b""
-        for i in range(Q_sigma):
-            # dfa_idx += self.dfa["dfa"][i][0]
-            dfa_value += self.dfa["dfa"][i][1]
-        assert len(dfa_value) == Q_sigma * state_len, f"dfa_value length wrong"
-        # for round, i in enumerate(input):
-        #     print(f"evaluating input {round}")
-        #     # idx = (i.to_bytes(1, byteorder="big") + curr_state) * Q_sigma
-        #     idx = i.to_bytes(1, byteorder="big") + curr_state
-        #     mask = b""
-        #     for j in trange(Q_sigma):
-        #         mask += self.__gen_mask(self.__share_compare(idx, self.dfa["dfa"][j][0]), state_len)
-        #     assert len(mask) == Q_sigma * state_len, f"mask length wrong, len(mask) = {len(mask)}"
-        #     print(f"round {round} get mask")
-        #     lres = self.__share_and(mask, dfa_value)
 
-        #     res = bytearray(lres[:state_len])
-        #     assert len(lres) % state_len == 0
-        #     for j in range(state_len, len(lres), state_len):
-        #         util.XOR_ba_b(res, lres[j:j+state_len])
-            
-        #     curr_state = bytes(res)
-        #     print(f"round {round} finish, curr_state = {curr_state}")
         for round, i in enumerate(input):
             before = len(self.__ai)
             print(f"evaluating input {round}")
             # idx = (i.to_bytes(1, byteorder="big") + curr_state) * Q_sigma
             idx = i.to_bytes(1, byteorder="big") + curr_state
-            mask = b""
+
+            res = bytearray(b"\0" * state_len)
             for j in trange(Q_sigma):
-                mask += self.__gen_mask(self.__share_compare(idx, self.dfa["dfa"][j][0]), state_len)
-            assert len(mask) == Q_sigma * state_len, f"mask length wrong, len(mask) = {len(mask)}"
-            print(f"round {round} get mask")
-            now = len(self.__ai)
-            print(f"[beaver] used {before - now} beaver, each round {(before - now) // Q_sigma}.")
-            before = now
-            lres = self.__share_and(mask, dfa_value)
+                mask = self.__gen_mask(self.__share_compare(idx, self.dfa["dfa"][j][0]), state_len)
+                lres = self.__share_and(mask, self.dfa["dfa"][j][1])
+                util.XOR_ba_b(res, lres)
+            
             now = len(self.__ai)
             print(f"[beaver] used {before - now} beaver, each round {(before - now) // Q_sigma}.")
 
-            res = bytearray(lres[:state_len])
-            assert len(lres) % state_len == 0
-            for j in range(state_len, len(lres), state_len):
-                util.XOR_ba_b(res, lres[j:j+state_len])
-            
             curr_state = bytes(res)
-            print(f"round {round} finish, curr_state = {curr_state}")
+            print(f"round {round} finish, curr_state = {curr_state.hex()}")
         
         res = 0
         # OR all result: NOT -> AND -> NOT

@@ -74,5 +74,5 @@ if __name__ == "__main__":
     print(f"length of beaver: {len(beaver_tripples[0]['a'])}")
     res = query(nodes, beaver_tripples, input_strs, key)
     
-    assert 0 < res < 2
-    print("" if res == 1 else "not " + "match.")
+    assert res in [0, 1]
+    print(("" if res == 1 else "not ") + "match.")
